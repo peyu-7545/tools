@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>KaTeXEditor</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background-color: #eee;
+            display: grid;
+            grid-template: 100px 1fr / 50vw 50vw;
+            grid-template-areas:
+                "t t"
+                "i o";
+        }
+
+        body>h1 {
+            grid-area: t;
+        }
+
+        .inputArea {
+            grid-area: i;
+            border: 1px solid black;
+            background-color: #ccc;
+        }
+
+        .outputArea {
+            grid-area: o;
+            border: 1px solid black;
+            background-color: #ddd;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+        }
+
+        .cjk_fallback {
+            font-family: "Ten Mincho", serif;
+            font-size: 80%;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>KaTeX Editor Prototype</h1>
+    <div class="inputArea">
+        <textarea></textarea>
+    </div>
+    <div class="outputArea">
+        <span></span>
+    </div>
+
+    <script>
+        function render(element, latex) {
+            katex.render(latex, element, { throwOnError: false, strict: false });
+        }
+
+        const textarea = document.querySelector("textarea");
+        const span = document.querySelector("span")
+
+        textarea.oninput = e => render(span, e.target.value);
+    </script>
+</body>
+
+</html>
