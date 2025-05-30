@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageToEmoji</title>
+    <style>
+        html {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        body {
+            margin: 0;
+            height: 100%;
+            padding: 4px;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: 4em 2em auto 1fr;
+            background-color: #f0f0f0;
+        }
+
+        hr {
+            margin: 4px 0;
+        }
+
+        h1 {
+            margin: 0;
+        }
+
+        input[type=number] {
+            width: 50px;
+        }
+
+        button {
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid black;
+        }
+
+        #inputArea {
+            display: flex;
+            column-gap: 15px;
+        }
+
+        #outputArea {
+            white-space: nowrap;
+            font-size: 5px;
+            padding: 0 2px;
+            overflow: scroll;
+        }
+
+        #result {
+            margin: 0;
+            letter-spacing: -0.2em;
+            line-height: 1em;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>絵文字コンバータ</h1>
+    <div id="inputArea">
+        <input type="file" accept="image/*" />
+        <span>横幅:<input type="number" min="0" />文字</span>
+        <span>文字サイズ:<input type="number" min="0" />px</span>
+        <button id="copyBtn">絵文字をコピー</button>
+        <button id="downloadBtn">絵文字をダウンロード</button>
+    </div>
+    <hr>
+    <div id="outputArea">
+        <p id="result"></p>
+    </div>
+    <script>
+        const [fileInput, colInput, fontSizeInput] = document.querySelectorAll("input");
+        const canvas = new OffscreenCanvas(0, 0);
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        const result = document.getElementById("result");
+        const outputArea = document.getElementById("outputArea");
+        const copyBtn = document.getElementById("copyBtn");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const IMG_SIZE = 512;
+        const emoji = [
+            { char: "🟥", color: [221, 46, 68] },
+            { char: "🟧", color: [255, 153, 0] },
+            { char: "🟨", color: [255, 205, 46] },
+            { char: "🟩", color: [125, 180, 64] },
+            { char: "🟦", color: [18, 119, 211] },
+            { char: "🟪", color: [172, 69, 189] },
+            { char: "⬛", color: [64, 64, 64] },
+            { char: "⬜", color: [225, 225, 225] },
+            { char: "🟫", color: [184, 109, 83] },
+        ];
+        let col = 100;
+        let fontSize = 5;
+
+        colInput.value = col;
+        fontSizeInput.value = fontSize;
+
+        fileInput.oninput = cvtImg;
+
+        colInput.oninput = () => {
+            col = colInput.value;
+            cvtImg();
+        }
+
+        copyBtn.onclick = () => {
+            const str = result.innerText;
+            if (!str) {
+                copyBtn.innerHTML = `コピー対象がありません`;
+                setTimeout(() => {
+                    copyBtn.innerHTML = `絵文字をコピー`;
+                });
+                return;
+            }
+            navigator.clipboard.writeText(result.innerText);
+            copyBtn.innerHTML = `コピーしました`;
+            setTimeout(() => {
+                copyBtn.innerHTML = `絵文字をコピー`;
+            }, 1000);
+        }
+
+        downloadBtn.onclick = () => {
+            const str = result.innerText;
+            if (!str) {
+                downloadBtn.innerHTML = `ダウンロード対象がありません`;
+                setTimeout(() => {
+                    downloadBtn.innerHTML = `絵文字をダウンロード`;
+                });
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([result.innerText], { type: "text/plain" }));
+            link.download = 'emoji.txt';
+            link.click();
+            downloadBtn.innerHTML = `ダウンロードしました`;
+            setTimeout(() => {
+                downloadBtn.innerHTML = `絵文字をダウンロード`;
+            });
+        }
+
+        fontSizeInput.oninput = () => {
+            outputArea.style.fontSize = `${fontSizeInput.value}px`;
+        }
+
+        function cvtImg() {
+
+            // ファイルを読み込む
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // ファイルリーダーと画像を初期化
+            const reader = new FileReader();
+            const img = new Image();
+
+            // ファイルを読み込む
+            reader.readAsDataURL(file);
+
+            // 読み込み終わったら
+            reader.onload = () => {
+
+                // 画像のソースに指定する
+                img.src = reader.result;
+
+                // 画像が読み込み終わったら
+                img.onload = () => {
+
+                    let cw, ch
+
+                    // 変換後の文字列
+                    let str = "";
+
+                    const aspectRatio = img.width / img.height;
+
+                    if (aspectRatio < 1) {
+                        cw = IMG_SIZE * aspectRatio;
+                        ch = IMG_SIZE;
+                    } else {
+                        cw = IMG_SIZE;
+                        ch = IMG_SIZE / aspectRatio;
+                    }
+
+                    // キャンバスの大きさを変える
+                    canvas.width = cw |= 0;
+                    canvas.height = ch |= 0;
+
+                    // 画像を描画する
+                    ctx.drawImage(img, 0, 0, cw, ch);
+
+                    // 画像を取得する
+                    const data = ctx.getImageData(0, 0, cw, ch).data;
+
+                    // 画像を消す
+                    ctx.clearRect(0, 0, cw, ch);
+
+                    // 文字サイズと一文字当たりのピクセル数、行の数を求める
+                    const charSize = cw / col;
+                    const num = charSize * charSize;
+                    const row = ch / charSize | 0;
+
+                    // xy座標で色を取得する関数
+                    function positionToIndex(x, y) {
+                        const i = (y * cw + x) * 4;
+                        return [data[i], data[i + 1], data[i + 2]];
+                    }
+
+                    // 全ての文字に対して処理
+                    for (let y = 0; y < row; y++) {
+                        for (let x = 0; x < col; x++) {
+
+                            // 文字サイズ
+                            const [r, g, b] = positionToIndex(Math.round((x + 0.5) * charSize), Math.round((y + 0.5) * charSize));
+
+                            // 最小値
+                            const min = { char: undefined, value: Infinity };
+
+                            // 全ての絵文字に対して処理
+                            for (e of emoji) {
+
+                                // 絵文字のとの色の差を求める
+                                const [R, G, B] = e.color;
+                                const dist = (R - r) * (R - r) + (G - g) * (G - g) + (B - b) * (B - b);
+
+                                // これまでの絵文字よりも小さかったら更新
+                                if (min.value > dist) {
+                                    min.value = dist;
+                                    min.char = e.char;
+                                }
+                            }
+
+                            // 最も近い文字を追加
+                            str += min.char;
+                        }
+
+                        // 改行
+                        str += "\n";
+                    }
+
+                    // 更新
+                    result.innerText = str;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
