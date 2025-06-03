@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>複素フーリエ変換ビジュアライザー</title>
+    <style>
+        body {
+            margin: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f0f0;
+            padding: 5px;
+            box-sizing: border-box;
+            background-image: url(https://avatars.githubusercontent.com/u/190512328);
+            background-size: 100vw;
+            background-position: center;
+        }
+
+        * {
+            margin: 0;
+        }
+
+        @media (scripting:none) {
+
+            body {
+                background: none !important;
+            }
+
+            .content {
+                display: none !important;
+            }
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            height: 80%;
+        }
+
+        h1 {
+            background-color: #3339;
+            user-select: none;
+            color: #f0f0f0;
+            grid-area: 1/1/2/3;
+            text-align: center;
+            padding: 0.3em;
+        }
+
+        #canvasBG {
+            background-color: #555;
+            grid-area: 2/1;
+            border: 1px solid black;
+        }
+
+        canvas {
+            grid-area: 2/1;
+        }
+
+        .setting {
+            background: #bbb;
+            grid-area: 2/2;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5%;
+            border-style: outset;
+            overflow: scroll;
+        }
+
+        .setting hr {
+            width: 97%;
+        }
+    </style>
+</head>
+
+<body>
+    <noscript>
+        <p>あなたのブラウザはJavaScriptが無効になっています</p>
+        <p>アップデートをするか、設定から有効化してください</p>
+    </noscript>
+
+    <div class="content">
+        <h1>複素フーリエ変換ビジュアライザー</h1>
+
+        <div id="canvasBG"></div>
+        <canvas id="systemCanvas"></canvas>
+        <canvas id="userCanvas"></canvas>
+
+        <div class="setting">
+            <h3>設定</h3>
+            <hr>
+            <h4>背景</h4>
+            <label>色で指定:<input id=bgOfColor type="radio" name="bg" checked /></label>
+            <label>画像URLで指定:<input id=bgOfImage type="radio" name="bg" /></label>
+            <label>色:<input id="bgColor" type="color" /></label>
+            <label>URL:<input id="bgImage" type="url" placeholder="画像URLを入力" /></label>
+            <hr>
+            <h4>ペン</h4>
+            <label>表示する:<input class="isDrawCheckBox" type="checkbox" /></label>
+            <label>色:<input class="colorInput" type="color" /></label>
+            <hr>
+            <h4>回転軸</h4>
+            <label>表示する:<input class="isDrawCheckBox" type="checkbox" /></label>
+            <label>色:<input class="colorInput" type="color" /></label>
+            <hr>
+            <h4>円</h4>
+            <label>表示する:<input class="isDrawCheckBox" type="checkbox" /></label>
+            <label>色:<input class="colorInput" type="color" /></label>
+            <hr>
+            <h4>軌跡</h4>
+            <label>表示する:<input class="isDrawCheckBox" type="checkbox" /></label>
+            <label>色:<input class="colorInput" type="color" /></label>
+            <hr>
+            <br>
+            <h3>フーリエ変換とは？</h3>
+            <hr>
+            <p>音や色といった複雑な信号を、正弦波(sin波)などの単純な信号に分解する変換のこと</p>
+            <p>ジョゼフ・フーリエという18~19世紀の数学・物理学者により導入された</p>
+            <p>現代では音声や画像の処理にて活用されている</p>
+            <hr>
+            <br>
+            <h3>関連リンク</h3>
+            <a href="https://potofu.me/peyu-7545">制作者のプロフィールページ</a>
+            <a href="https://github.com/peyu-7545/tools">このページのソースコード</a>
+            <a href="https://ja.wikipedia.org/wiki/フーリエ変換">フーリエ変換-Wikipedia</a>
+        </div>
+    </div>
+
+    <script>
+        const userCanvas = document.getElementById("userCanvas");
+        const systemCanvas = document.getElementById("systemCanvas");
+        const ctxU = userCanvas.getContext("2d");
+        const ctxS = systemCanvas.getContext("2d");
+        const canvasBG = document.getElementById("canvasBG");
+        const btn = document.querySelector("button");
+        const bgColor = document.getElementById("bgColor");
+        const bgImage = document.getElementById("bgImage");
+        const bgOfColor = document.getElementById("bgOfColor");
+        const bgOfImage = document.getElementById("bgOfImage");
+        const isDrawCheckBox = Array.from(document.getElementsByClassName("isDrawCheckBox"));
+        const colorInput = Array.from(document.getElementsByClassName("colorInput"));
+        const isDraw = { pen: true, axis: true, circle: true, systemDrawPath: true };
+        const drawColor = { pen: "#fff100", circle: "#ffffff", axis: "#90ee90", systemDrawPath: "#ff2d2d" };
+        const properties = Object.keys(isDraw);
+
+        let systemDrawPath = [];
+        let ftData = [];
+        let userDrawPath = [];
+        let time = 0;
+        let isPointerDown = false;
+        let isUserDrawing = false;
+
+        const canvasOffset = { x: null, y: null };
+
+        const canvasSize = 600;
+
+        function rgbToHex(color) {
+            const [r, g, b] = color.match(/(\d+)/g);
+            return `#` + (r * 65536 + g * 256 + (+b)).toString(16);
+        }
+
+        bgColor.value = rgbToHex(getComputedStyle(canvasBG).background);
+        bgColor.oninput = bgColorUpdate;
+        bgOfColor.oninput = bgColorUpdate;
+
+        function bgColorUpdate() {
+            if (bgOfColor.checked) {
+                canvasBG.style.background = bgColor.value;
+            }
+        }
+
+        function bgImageUpdate() {
+            const url = bgImage.value;
+            if (bgOfImage.checked) {
+                const img = new Image();
+                img.src = url;
+                img.onload = () => {
+                    bgImage.style.color = `black`;
+                    canvasBG.style.background = `url(${url})`;
+                    canvasBG.style.backgroundSize = `contain`;
+                }
+                img.onerror = () => {
+                    bgImage.style.color = `red`;
+                }
+            }
+        }
+
+        bgImage.oninput = bgImageUpdate;
+        bgOfImage.oninput = bgImageUpdate;
+
+        isDrawCheckBox.forEach((e, i) => {
+            const target = properties[i];
+            e.checked = isDraw[target];
+            e.oninput = () => isDraw[target] = e.checked;
+        });
+
+        colorInput.forEach((e, i) => {
+            const target = properties[i];
+            e.value = drawColor[target];
+            e.oninput = () => drawColor[target] = e.value;
+        });
+
+        function d(arr) {
+            ftData = [];
+            for (let i = 0; i < arr.length; i += 3) {
+                ftData.push({ freq: arr[i], amp: arr[i + 1], phase: arr[i + 2] });
+            }
+            console.log(ftData);
+        }
+
+        function calcPoints() {
+
+            ftData = fft(userDrawPath);
+
+            ftData.sort((a, b) => b.amp - a.amp);
+
+            userDrawPath = [];
+            systemDrawPath = [];
+            time = 0;
+        }
+
+        function resize() {
+            userCanvas.width = systemCanvas.width = canvasSize;
+            userCanvas.height = systemCanvas.height = canvasSize;
+            const offset = userCanvas.getBoundingClientRect();
+            canvasOffset.x = offset.x;
+            canvasOffset.y = offset.y;
+            ctxU.transform(canvasSize / 2, 0, 0, -canvasSize / 2, canvasSize / 2, canvasSize / 2);
+            ctxS.transform(canvasSize / 2, 0, 0, -canvasSize / 2, canvasSize / 2, canvasSize / 2);
+            ctxU.lineWidth = 4 / canvasSize;
+            ctxS.lineWidth = 2 / canvasSize;
+        }
+
+        function drawUserCanvas() {
+
+            ctxU.clearRect(-1, -1, 2, 2);
+
+            if (isUserDrawing && isDraw.pen) {
+
+                ctxU.beginPath();
+                ctxU.strokeStyle = drawColor.pen;
+                userDrawPath.forEach(([x, y], i) => ctxU[i ? "lineTo" : "moveTo"](x, y));
+                ctxU.stroke();
+            }
+        }
+
+        function drawSystemCanvas() {
+
+            ctxS.clearRect(-1, -1, 2, 2);
+
+            let vx = 0, vy = 0;
+
+            for (const { freq, amp, phase } of ftData) {
+
+                angle = Math.PI * 2 * freq * time + phase;
+
+                if (isDraw.circle) {
+
+                    if (amp >= 1 / canvasSize) {
+
+                        ctxS.beginPath();
+                        ctxS.strokeStyle = drawColor.circle;
+                        ctxS.arc(vx, vy, amp, 0, Math.PI * 2);
+                        ctxS.stroke();
+                    }
+                }
+
+                const prevx = vx, prevy = vy;
+
+                vx += amp * Math.cos(angle);
+                vy += amp * Math.sin(angle);
+
+                if (isDraw.axis) {
+                    ctxS.beginPath();
+                    ctxS.moveTo(prevx, prevy);
+                    ctxS.strokeStyle = drawColor.axis;
+                    ctxS.lineTo(vx, vy);
+                    ctxS.stroke();
+                }
+            }
+
+            systemDrawPath.unshift([vx, vy]);
+
+            if (isDraw.systemDrawPath) {
+
+                ctxS.beginPath();
+                ctxS.strokeStyle = drawColor.systemDrawPath;
+                systemDrawPath.forEach(([x, y], i) => ctxS[i ? "lineTo" : "moveTo"](x, y));
+                ctxS.stroke();
+            }
+
+            if ((time += 1 / ftData.length) > 1) {
+
+                time = 0;
+                systemDrawPath = [];
+            }
+        }
+
+        function lenTo2Pow(points) {
+            const inputLength = points.length;
+            const targetLength = 2 ** Math.min(Math.floor(Math.log2(inputLength)), 10);
+
+            const distances = [0];
+            for (let i = 1; i < points.length; i++) {
+                const dx = points[i][0] - points[i - 1][0];
+                const dy = points[i][1] - points[i - 1][1];
+                distances[i] = distances[i - 1] + Math.hypot(dx, dy);
+            }
+
+            const totalLength = distances[distances.length - 1];
+            const interval = totalLength / (targetLength - 1);
+
+            const resampled = [];
+            let targetDist = 0, j = 0;
+
+            for (let i = 0; i < targetLength; i++) {
+                while (j < distances.length - 2 && distances[j + 1] < targetDist) j++;
+
+                const dist1 = distances[j];
+                const dist2 = distances[j + 1] ?? dist1;
+                const point1 = points[j];
+                const point2 = points[j + 1] ?? points[j];
+
+                const t = dist2 === dist1 ? 0 : (targetDist - dist1) / (dist2 - dist1);
+                const x = point1[0] + t * (point2[0] - point1[0]);
+                const y = point1[1] + t * (point2[1] - point1[1]);
+                resampled.push([x, y]);
+
+                targetDist += interval;
+            }
+
+            return [resampled, targetLength];
+        }
+
+        function fft(points) {
+
+            const [resampledPoints, L] = lenTo2Pow(points);
+
+            function splitFFT(a) {
+
+                const N = a.length;
+                if (N <= 1) return a;
+
+                const even = new Array(N / 2);
+                const odd = new Array(N / 2);
+
+                for (let i = 0; i < N / 2; i++) {
+                    even[i] = a[2 * i];
+                    odd[i] = a[2 * i + 1];
+                }
+
+                const evenFFT = splitFFT(even);
+                const oddFFT = splitFFT(odd);
+
+                const combined = Array(N);
+
+                for (let k = 0; k < N / 2; k++) {
+
+                    const t = 2 * Math.PI * k / N;
+                    const cos = Math.cos(t), sin = -Math.sin(t);
+                    const e = oddFFT[k];
+
+                    const rotated = [
+                        cos * e[0] - sin * e[1],
+                        sin * e[0] + cos * e[1],
+                    ];
+
+                    combined[k] = [
+                        evenFFT[k][0] + rotated[0],
+                        evenFFT[k][1] + rotated[1],
+                    ];
+
+                    combined[k + N / 2] = [
+                        evenFFT[k][0] - rotated[0],
+                        evenFFT[k][1] - rotated[1],
+                    ];
+                }
+
+                return combined;
+            }
+
+            return splitFFT(resampledPoints).map((e, i) => {
+                const re = e[0] / L;
+                const im = e[1] / L;
+
+                return {
+                    freq: i,
+                    amp: Math.hypot(re, im),
+                    phase: Math.atan2(im, re),
+                };
+            });
+        }
+
+
+        function loop() {
+            drawUserCanvas();
+            drawSystemCanvas();
+            requestAnimationFrame(loop);
+        }
+
+        function userDrawStart() {
+            isPointerDown = true;
+            isUserDrawing = true;
+        }
+
+        function userDrawing(e) {
+            if (isPointerDown) {
+                const position = [(e.x - canvasOffset.x) / canvasSize * 2 - 1, 1 - (e.y - canvasOffset.y) / canvasSize * 2];
+                userDrawPath.push(position);
+            }
+        }
+
+        function startProcess() {
+            if (isPointerDown) {
+                isPointerDown = false;
+                isUserDrawing = false;
+                calcPoints();
+            }
+        }
+
+        userCanvas.onpointerdown = userDrawStart;
+        userCanvas.onpointermove = userDrawing;
+        userCanvas.onpointerleave = startProcess;
+        userCanvas.onpointerup = startProcess;
+        window.onresize = resize;
+        resize(), loop();
+    </script>
+</body>
+
+</html>
