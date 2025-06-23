@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像をGitHubの草に変換するやつ(試作)</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background-color: #0d1117;
+            margin: 0;
+        }
+
+        table {
+            outline: 1px solid black;
+            border-spacing: 3px;
+        }
+
+        td {
+            border-radius: 2px;
+            width: 10px;
+            height: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>画像をGitHubの草に変換するやつ(試作)</h1>
+    <hr>
+    <input type=file accept="image/*" id="imgInput" />
+    <script>
+        const input = document.getElementById("imgInput");
+        const canvas = new OffscreenCanvas(null, null);
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+        // 草表示用のテーブルを作る
+        const table = document.createElement("table");
+        const tbody = document.createElement("tbody");
+        table.appendChild(tbody);
+        document.body.appendChild(table);
+
+        // 年間週数
+        const WEEKS_PER_YEAR = 53;
+
+        // グレースケール化して明度を取得
+        function rgbToBright(r, g, b) {
+            return r * 0.299 + g * 0.587 + b * 0.114;
+        }
+
+        // 草の色
+        const grassColors = [
+            "#151b23",
+            "#033a16",
+            "#196c2e",
+            "#2ea043",
+            "#56d364",
+        ];
+
+        // 画像ファイル入力イベント
+        input.oninput = () => {
+
+            // テーブルの中身を初期化
+            tbody.innerHTML = "";
+
+            // 画像ファイルを読み込む
+            const img = new Image();
+            const reader = new FileReader();
+            reader.readAsDataURL(input.files[0]);
+
+            reader.onload = () => {
+
+                img.src = reader.result;
+
+                img.onload = () => {
+
+                    // アスペクト比を保ちながら拡大
+                    const cw = canvas.width = WEEKS_PER_YEAR;
+                    const ch = canvas.height = Math.floor(WEEKS_PER_YEAR * img.height / img.width);
+
+                    // 画像データを取得
+                    ctx.drawImage(img, 0, 0, cw, ch);
+                    const imgData = ctx.getImageData(0, 0, cw, ch);
+                    ctx.clearRect(0, 0, cw, ch);
+
+                    const cells = new Array(cw * ch);
+
+                    // 各ピクセルに対応するセルを作成する
+                    for (let i = 0; i < ch; i++) {
+
+                        // 行を作成
+                        const tr = document.createElement("tr");
+
+                        for (let j = 0; j < WEEKS_PER_YEAR; j++) {
+
+                            // セルを作成、追加
+                            const cell = cells[i * WEEKS_PER_YEAR + j] = document.createElement("td");
+                            tr.appendChild(cell);
+                        }
+
+                        // 行を追加
+                        tbody.appendChild(tr);
+                    }
+
+                    const dataSize = cw * ch * 4;
+
+                    for (let i = 0; i < dataSize; i += 4) {
+
+                        // 草の色を決める
+                        const bright = rgbToBright(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
+                        const colorIndex = Math.floor(bright / 255 * 5);
+
+                        cells[i / 4].style.backgroundColor = grassColors[colorIndex];
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
