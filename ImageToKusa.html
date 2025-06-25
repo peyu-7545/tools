@@ -116,7 +116,7 @@
 
                         // 草の色を決める
                         const bright = rgbToBright(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
-                        const colorIndex = Math.floor(bright / 255 * 5);
+                        const colorIndex = Math.floor(bright / 255 * grassColors.length);
 
                         cells[i / 4].style.backgroundColor = grassColors[colorIndex];
                     }
