@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://avatars.githubusercontent.com/u/190512328" rel="icon">
+    <title>力学モデルを使ったグラフ描画</title>
+    <title>Document</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden / scroll;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: linear-gradient(to right, #068b71, #00a5de);
+            text-align: center;
+            color: #f0f0f0;
+            padding: 0;
+        }
+
+        footer {
+            background: #454545;
+            text-align: center;
+            color: #f0f0f0;
+        }
+
+        h1.title {
+            margin: 0.5em;
+        }
+
+        article {
+            padding: 0 1.5em;
+        }
+
+        canvas {
+            border: 1px solid black;
+            border-radius: 5px;
+            width: min(80%, 80vh);
+            aspect-ratio: 1;
+            background: #ddd;
+        }
+
+        div.control {
+            display: flex;
+            min-width: 80%;
+            height: 1.5em;
+            gap: 1em;
+        }
+
+        #vertexNumOutput {
+            margin: 0;
+        }
+
+        h3 {
+            margin: 0.5em 0;
+        }
+
+        p {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1 class="title">実験</h1>
+    </header>
+    <main>
+        <article>
+            <h1>力学モデルによるグラフ描画アルゴリズム</h1>
+            <hr>
+            <canvas></canvas>
+            <div class="control">
+                <button onclick="simulation()">シミュレーションする</button>
+                <span>頂点数:</span>
+                <span id="vertexNumOutput"></span>
+                <input type="range" min="1" max="100" id="vertexNumInput" />
+            </div>
+            <hr>
+            <section class="description">
+                <h3>説明</h3>
+                <p><strong>Fruchterman-Reingoldアルゴリズム</strong>はグラフを美しく描画するためのアルゴリズムです。</p>
+                <p>引力、斥力といった力を再現し、自然で合理的な配置を目指します。</p>
+                <p>ここでは<strong>無向完全グラフ</strong>を使って、このアルゴリズムをシミュレートしています。</p>
+            </section>
+            <hr>
+            <aside>
+                <h3>参考</h3>
+                <ul>
+                    <li>
+                        <a href="https://ja.wikipedia.org/wiki/力学モデル_(グラフ描画アルゴリズム)">力学モデル(グラフ描画アルゴリズム) - Wikipedia</a>
+                    </li>
+                </ul>
+            </aside>
+        </article>
+    </main>
+    <footer>
+        <small>&copy; 2025 peyu All rights reserved.</small>
+    </footer>
+    <script>
+        // canvasを取得
+        const canvas = document.querySelector("canvas");
+        const ctx = canvas.getContext("2d");
+        const cw = canvas.width = 800;
+        const ch = canvas.height = 800;
+
+        let vertexNum = 64;
+
+        // n頂点完全グラフを作成
+        function completeGraph(n) {
+            const r = new Array(n).fill(null).map((_, i) => i);
+            return new Array(n).fill(null).map((_, i) => r.toSpliced(i, 1));
+        }
+
+        // 頂点数操作用
+        const vertexNumInput = document.getElementById("vertexNumInput");
+        const vertexNumOutput = document.getElementById("vertexNumOutput");
+
+        // 頂点数を更新
+        vertexNumInput.oninput = e => {
+            vertexNum = Number(e.target.value);
+            vertexNumOutput.textContent = vertexNum;
+        }
+
+        // 初期値
+        vertexNumInput.value = vertexNum;
+        vertexNumOutput.textContent = vertexNum;
+
+        // シミュレーションを行う
+        function simulation() {
+
+            // パラメーター
+            const COULOMB_NUM = 200;
+            const SPRING_NUM = 0.2;
+            const SPRING_REST = 400;
+            const NODE_MASS = 1.0;
+            const DAMPING_NUM = 0.9;
+            const DELTA_TIME = 0.1;
+            const FRAME_TIME = 1000 / 60;
+            const KINETIC_MIN = 10;
+
+            // グラフを処理用のオブジェクトに変換
+            const nodes = completeGraph(vertexNum).map(e => {
+                const connect = e;
+                const position = [Math.random() * cw, Math.random() * ch];
+                const velocity = [0, 0];
+                return { connect, position, velocity };
+            });
+
+            // 描画する
+            function draw() {
+
+                ctx.clearRect(0, 0, cw, ch);
+
+                // 辺(エッジ/リンク)
+                ctx.strokeStyle = "#3331";
+                nodes.forEach((e, i) => {
+                    e.connect.forEach(c => {
+
+                        // 重複防止
+                        if (i < c) {
+                            ctx.beginPath();
+                            ctx.moveTo(e.position[0], e.position[1]);
+                            ctx.lineTo(nodes[c].position[0], nodes[c].position[1]);
+                            ctx.stroke();
+                        }
+
+                    });
+                });
+
+                // 点(ノード)と番号
+                ctx.fillStyle = "red";
+                ctx.font = `30px monospace`;
+                nodes.forEach((e, i) => {
+
+                    ctx.beginPath();
+                    ctx.arc(e.position[0], e.position[1], 4, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.fillText(i, e.position[0] - 15, e.position[1] - 5);
+                });
+            }
+
+            // 位置を更新する
+            function update() {
+
+                // 運動エネルギーの総和
+                let kineticSum = 0;
+
+                nodes.forEach((e, i) => {
+
+                    // このノードに作用する力
+                    const force = [0, 0];
+
+                    // クーロン力
+                    nodes.forEach((p, j) => {
+                        if (i !== j) {
+                            const dx = e.position[0] - p.position[0];
+                            const dy = e.position[1] - p.position[1];
+                            const dist = Math.hypot(dx, dy);
+                            if (dist > 1e-5) {
+                                const scale = COULOMB_NUM / (dist * dist);
+                                force[0] += (dx / dist) * scale;
+                                force[1] += (dy / dist) * scale;
+                            }
+                        }
+                    });
+
+                    // バネ力
+                    e.connect.forEach(p => {
+                        const c = nodes[p];
+                        const dx = c.position[0] - e.position[0];
+                        const dy = c.position[1] - e.position[1];
+                        const dist = Math.hypot(dx, dy);
+                        if (dist > 1e-5) {
+                            const scale = SPRING_NUM * (dist - SPRING_REST);
+                            force[0] += (dx / dist) * scale;
+                            force[1] += (dy / dist) * scale;
+                        }
+                    });
+
+                    // 速度を求める
+                    const scalar = DELTA_TIME / NODE_MASS;
+                    e.velocity[0] = (e.velocity[0] + force[0] * scalar) * DAMPING_NUM;
+                    e.velocity[1] = (e.velocity[1] + force[1] * scalar) * DAMPING_NUM;
+
+                    // 位置を求める
+                    e.position[0] += DELTA_TIME * e.velocity[0];
+                    e.position[1] += DELTA_TIME * e.velocity[1];
+
+                    // キャンバス内に制限
+                    e.position[0] = Math.min(Math.max(e.position[0], 0), cw);
+                    e.position[1] = Math.min(Math.max(e.position[1], 0), ch);
+
+                    // 運動エネルギー(質量*速度^2)
+                    kineticSum += 0.5 * NODE_MASS * (e.velocity[0] ** 2 + e.velocity[1] ** 2);
+                });
+
+                return kineticSum;
+            }
+
+            // 前回のシミュレーションを停止
+            clearInterval(window.intervalId);
+
+            console.log("シミュレーション開始");
+
+            // シミュレーションをスタート
+            window.intervalId = setInterval(() => {
+
+                // 更新と描画
+                const k = update();
+                draw();
+
+                // 最小値を下回ったらシミュレーション終了
+                if (k < KINETIC_MIN) {
+                    clearInterval(window.intervalId);
+                    console.log("シミュレーション終了");
+                }
+            }, FRAME_TIME);
+        }
+
+        // 最初に実行
+        window.onload = simulation;
+    </script>
+</body>
+
+</html>
