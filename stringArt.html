@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 16px;
+            background-color: #fefefe;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        div#ui {
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            padding: 0.2em 1em;
+            width: 60%;
+        }
+
+        header {
+            background-color: #666;
+            color: #ddd;
+            text-align: center;
+            width: 100%;
+        }
+
+        div#output {
+            display: grid;
+            grid-template: 1.5em 1fr/ 70fr 30fr;
+            grid-template-areas:
+                "c d"
+                "c t";
+            gap: 0.5em;
+        }
+
+        div.control {
+            display: flex;
+            flex-direction: column;
+            border-style: inset;
+            width: 100%;
+            padding: 0.3em 0.2em;
+            background-color: #ccc;
+            margin-bottom: 1em;
+        }
+
+        div.control>label {
+            display: flex;
+            justify-content: space-between;
+            cursor: pointer;
+            margin-bottom: 0.1em;
+        }
+
+        div.control>label:hover {
+            background-color: #aaa;
+            transition: all 0.3s;
+        }
+
+        input#imageInput {
+            display: none;
+        }
+
+        button {
+            background-color: #bbb;
+            border-radius: 3px;
+            border: none;
+        }
+
+        button:hover {
+            cursor: pointer;
+            background-color: #eee;
+            transition: all 0.3s;
+        }
+
+        input {
+            border: 1px solid lightgray;
+            background-color: #eee;
+        }
+
+        input:focus {
+            outline: none;
+        }
+
+        input[type=color] {
+            cursor: pointer;
+        }
+
+        div#preview {
+            display: none;
+        }
+
+        img#previewImg {
+            border: outset;
+            cursor: pointer;
+        }
+
+        img#previewImg:hover {
+            opacity: 0.9;
+            border-radius: 5px;
+            transform: scale(0.99);
+            transition: all 0.3s;
+        }
+
+        button#convert {
+            font-size: 1.2em;
+            width: fit-content;
+            margin-left: auto;
+        }
+
+        span.previewText {
+            color: #555;
+            font-size: 12px;
+        }
+
+        p#errorMessage {
+            display: none;
+            margin: 0;
+            color: red;
+            font-size: 0.7em;
+            margin-left: auto;
+        }
+
+        h3 {
+            margin: 5px 0;
+        }
+
+        hr {
+            margin: 2px 0;
+        }
+
+        div#wrapper {
+            display: none;
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 1;
+            border: inset;
+            grid-area: c;
+        }
+
+        h1.title {
+            margin: 5px 0;
+        }
+
+        textarea#stringsOutput {
+            width: 100%;
+            resize: none;
+            padding: 1px 2px;
+            border: 1px solid #d2d2d2;
+            border-radius: 3px;
+            background: #e3e3e3;
+            color: #333;
+            font-size: 0.8em;
+            line-height: 1.2;
+            overflow: scroll;
+            position: absolute;
+            height: 100%;
+        }
+
+        textarea#stringsOutput::placeholder {
+            color: #999;
+        }
+
+        textarea#stringsOutput:focus {
+            outline: none;
+        }
+
+        button#copyBtn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            font-size: 0.7em;
+        }
+
+        div#textareaWrapper {
+            background-color: #ccc;
+            border: inset;
+            position: relative;
+            grid-area: t;
+        }
+
+        div#downloadWrapper {
+            width: 100%;
+            height: 100%;
+            grid-area: d;
+        }
+
+        button#downloadMovie {
+            width: 100%;
+            margin-right: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1 class="title">ストリングアート生成アプリ</h1>
+    </header>
+    <div id="ui">
+        <h3>設定</h3>
+        <hr>
+        <div class="control">
+            <label>
+                <span>変換する画像を選択:</span>
+                <button id="inputWrapper">画像を選択</button>
+                <input id="imageInput" type="file" accept="image/*">
+            </label>
+            <div id="preview">
+                <hr>
+                <span class="previewText">画像プレビュー(クリックして確認)</span>
+                <br>
+                <img id="previewImg">
+            </div>
+            <label>
+                <span>糸の色:</span>
+                <input type="color" id="strColor" value="#000000"></label>
+            <label>
+                <span>糸の不透明度:</span>
+                <input type="number" id="strOpacity" min="0.0" max="1.0" step="0.01" value="0.1">
+            </label>
+            <label>
+                <span>背景色:</span>
+                <input type="color" id="bgColor" value="#ffffff">
+            </label>
+            <label>
+                <span>円の色:</span>
+                <input type="color" id="circleColor" value="#000000">
+            </label>
+            <label>
+                <span>釘の色:</span>
+                <input type="color" id="nailColor" value="#000000">
+            </label>
+            <label>
+                <span>釘の個数:</span>
+                <input type="number" id="nailNum" min="2" max="500" value="300">
+            </label>
+            <label>
+                <span>糸の最大数:</span>
+                <input type="number" id="maxStr" min="100" value="5000" step="100">
+            </label>
+            <button id="convert" onclick="convert()">作成する！</button>
+            <p id="errorMessage"></p>
+        </div>
+
+        <div id="wrapper">
+            <div id="output">
+                <canvas></canvas>
+                <div id="downloadWrapper">
+                    <button id="downloadMovie">動画をダウンロード</button>
+                </div>
+                <div id="textareaWrapper">
+                    <textarea id=stringsOutput readonly placeholder="ここに糸を張る釘の番号が&#13表示されます"></textarea>
+                    <button id="copyBtn">コピー</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // 要素の取得
+        const imageInput = document.getElementById("imageInput");
+        const image = document.getElementById("previewImg");
+        const preview = document.getElementById("preview");
+        const strOpacityInput = document.getElementById("strOpacity");
+        const strColorInput = document.getElementById("strColor");
+        const bgColorInput = document.getElementById("bgColor");
+        const circleColorInput = document.getElementById("circleColor");
+        const nailColorInput = document.getElementById("nailColor");
+        const nailNumInput = document.getElementById("nailNum");
+        const maxStrInput = document.getElementById("maxStr");
+        const errorMessage = document.getElementById("errorMessage");
+        const inputWrapper = document.getElementById("inputWrapper");
+        const downloadMovie = document.getElementById("downloadMovie");
+        const wrapper = document.getElementById("wrapper");
+        const stringsOutput = document.getElementById("stringsOutput");
+        const copyBtn = document.getElementById("copyBtn");
+
+        // キャンバスの初期化
+        const canvas = document.querySelector("canvas");
+        const ctx = canvas.getContext("2d");
+        const cs = 500;
+        canvas.width = cs;
+        canvas.height = cs;
+
+        // 画像データのサイズ
+        const dataSize = cs * cs;
+        const dataSizeRGB = dataSize * 4;
+
+        // 画像データ(グレースケール)
+        const grayScaleImageData = new Uint8ClampedArray(dataSize);
+
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(stringsOutput.value);
+        }
+
+        // ボタンとinputを連動
+        inputWrapper.onclick = () => {
+            imageInput.click();
+        }
+
+        // 画像をポップアップで開く
+        image.onclick = () => {
+            const newWindow = window.open("", "_blank", { popup: true });
+            const newImage = document.createElement("img");
+            newImage.src = image.src;
+            newWindow.document.body.append(newImage);
+            newWindow.onclick = () => newWindow.close();
+        }
+
+        imageInput.oninput = e => {
+
+            // ファイルを取得
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 描画に必要なオブジェクトを生成
+            const canvas = new OffscreenCanvas(cs, cs);
+            const ctx = canvas.getContext("2d");
+            const fileReader = new FileReader();
+
+            fileReader.readAsDataURL(file);
+
+            fileReader.onload = e => {
+
+                image.src = e.target.result;
+
+                image.onload = () => {
+
+                    // 画像の位置とサイズを計算する
+                    const iw = image.width;
+                    const ih = image.height;
+
+                    let sx, sy, sw, sh;
+
+                    if (iw > ih) {
+                        sx = (iw - ih) / 2;
+                        sy = 0;
+                        sw = ih;
+                        sh = ih;
+                    } else {
+                        sx = 0;
+                        sy = (ih - iw) / 2;
+                        sw = iw;
+                        sh = iw;
+                    }
+
+                    // 画像を描画し、データを取得
+                    ctx.drawImage(image, sx, sy, sw, sh, 0, 0, cs, cs);
+                    const imageData = ctx.getImageData(0, 0, cs, cs);
+                    ctx.clearRect(0, 0, cs, cs);
+
+                    // グレースケールに変換
+                    for (let i = 0; i < dataSizeRGB; i += 4) {
+                        const r = imageData.data[i];
+                        const g = imageData.data[i + 1];
+                        const b = imageData.data[i + 2];
+
+                        grayScaleImageData[i / 4] = 0.299 * r + 0.587 * g + 0.114 * b;
+                    }
+
+                    // プレビュー用にサイズを変更
+                    image.width = 150;
+                    preview.style.display = "block";
+
+                    // エラーメッセージを消す
+                    errorMessage.style.display = "none";
+                }
+            }
+        }
+
+        function convert() {
+
+            if (!image.src) {
+                // 画像が選択されていないとき
+                errorMessage.textContent = "画像が選択されていません！";
+                errorMessage.style.display = "block";
+                return;
+            }
+
+            clearInterval(window.id);
+
+            stringsOutput.value = "";
+            wrapper.style.display = "block";
+
+            // 録画用
+            const stream = canvas.captureStream(30);
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+            const recordedChunks = [];
+
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            }
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: "video/webm" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "stringArt.webm";
+                downloadMovie.onclick = () => {
+                    a.click();
+                }
+            }
+
+            // データをコピー
+            const data = new Uint8ClampedArray(dataSize);
+            data.set(grayScaleImageData);
+
+            // パラメーターを取得
+            const strOpacity = Math.round(strOpacityInput.value * 255);
+            const strColor = strColorInput.value + strOpacity.toString(16).padStart(2, 0);
+            const bgColor = bgColorInput.value;
+            const circleColor = circleColorInput.value;
+            const nailColor = nailColorInput.value;
+            const nailNum = +nailNumInput.value;
+            const maxStr = +maxStrInput.value;
+
+            // インデックスを計算する用
+            function pairToIndex(i, j) {
+                return i < j ?
+                    (nailNum * i + j - i * (i + 3) / 2 - 1) :
+                    (nailNum * j + i - j * (j + 3) / 2 - 1);
+            }
+
+            // 円
+            const circleCenter = cs / 2 | 0;
+            const circleRadius = cs * 0.49 | 0;
+
+            // 背景を描画
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, cs, cs);
+
+            // 円を描画
+            ctx.beginPath();
+            ctx.strokeStyle = circleColor;
+            ctx.lineWidth = 2;
+            ctx.arc(circleCenter, circleCenter, circleRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 釘の位置
+            const nailPositions = new Uint16Array(nailNum * 2);
+
+            // 線が通るピクセル
+            const passPixels = new Array(nailNum * (nailNum - 1) / 2);
+
+            for (let i = 0; i < nailNum; i++) {
+
+                // 釘の位置を計算
+                const ix = Math.round(circleCenter + circleRadius * Math.cos(Math.PI * 2 * i / nailNum));
+                const iy = Math.round(circleCenter + circleRadius * Math.sin(Math.PI * 2 * i / nailNum));
+
+                nailPositions[2 * i] = ix;
+                nailPositions[2 * i + 1] = iy;
+
+                // 釘を描画
+                ctx.beginPath();
+                ctx.fillStyle = nailColor;
+                ctx.arc(ix, iy, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            for (let i = 0; i < nailNum; i++) {
+
+                const ix = nailPositions[2 * i];
+                const iy = nailPositions[2 * i + 1];
+
+                for (let j = i + 1; j < nailNum; j++) {
+                    let jx = nailPositions[2 * j];
+                    let jy = nailPositions[2 * j + 1];
+
+                    // bresenhamのアルゴリズムから線が通るピクセルを計算する
+                    const dx = Math.abs(jx - ix);
+                    const dy = Math.abs(jy - iy);
+                    const sx = jx < ix ? 1 : -1;
+                    const sy = jy < iy ? 1 : -1;
+                    let err = dx - dy;
+
+                    const length = Math.max(dx, dy) + 1;
+                    const result = new Uint32Array(length);
+
+                    for (let k = 0; k < length; k++) {
+                        result[k] = jy * cs + jx;
+                        if (ix == jx && iy == jy) break;
+                        const e2 = 2 * err;
+                        if (e2 > -dy) {
+                            err -= dy;
+                            jx += sx;
+                        }
+                        if (e2 < dx) {
+                            err += dx;
+                            jy += sy;
+                        }
+                    }
+
+                    passPixels[pairToIndex(i, j)] = result;
+                }
+            }
+
+            // 張った糸の数をカウント
+            let count = 0;
+            let stringsText = "[";
+
+            // 張る糸が偏らないように連番数列を作り、並べ替える
+            const serialArray = Array.from({ length: nailNum }, (_, i) => i);
+
+            // 録画開始
+            mediaRecorder.start();
+
+            window.id = setInterval(() => {
+                // 視点をランダムに選ぶ
+                const randomNail = Math.random() * nailNum | 0;
+
+                // 最も暗い線を求める
+                let darkestPairNail = -1;
+                let minValue = Infinity;
+
+                for (let i = nailNum - 1; i >= 1; i--) {
+                    const current = serialArray[i];
+                    if (randomNail == current) continue;
+
+                    // 平均値を計算
+                    const passPixel = passPixels[pairToIndex(randomNail, current)];
+                    const avg = passPixel.reduce((a, b) => a + data[b], 0) / passPixel.length;
+
+                    // 明度が小さければ更新する
+                    if (minValue > avg) {
+                        darkestPairNail = current;
+                        minValue = avg;
+                    }
+
+                    // 入れ替える
+                    const index = Math.random() * i | 0
+                    serialArray[i] = serialArray[index];
+                    serialArray[index] = current;
+                }
+
+                // 線を描画
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = strColor;
+                ctx.beginPath();
+                ctx.moveTo(nailPositions[2 * randomNail], nailPositions[2 * randomNail + 1]);
+                ctx.lineTo(nailPositions[2 * darkestPairNail], nailPositions[2 * darkestPairNail + 1]);
+                ctx.stroke();
+
+                // 糸のペアを追加
+                stringsText += `(${randomNail}-${darkestPairNail}),`;
+
+                // 糸を張ったピクセルの明度を上げる
+                const passPixel = passPixels[pairToIndex(randomNail, darkestPairNail)];
+
+                const length = passPixel.length;
+                for (let i = 0; i < length; i++) {
+                    data[passPixel[i]] += strOpacity;
+                }
+
+                // 糸を張る最大回数に達したら終了
+                if (++count == maxStr) {
+                    clearInterval(window.id);
+                    mediaRecorder.stop();
+
+                    // 最後の文字は閉じ括弧に置き換え
+                    stringsOutput.value = stringsText.replace(/.$/, "]");
+                    return;
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
+
+<!--
+    WebWorkers使うべき？
+    2,300ms程度ならいらないかも
+-->
