@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            background-color: #eee;
+            tab-size: 4;
+        }
+
+        div.editArea {
+            width: 500px;
+            height: 800px;
+            position: relative;
+        }
+
+        textarea#codeEditor {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            border: none;
+            position: absolute;
+            z-index: 1;
+            background-color: #333;
+            color: transparent;
+            resize: none;
+            font-size: 16px;
+            caret-color: #f0f0f0;
+            overflow: scroll;
+            white-space: pre;
+        }
+
+        textarea#codeEditor:focus {
+            outline: none;
+        }
+
+        code#syntaxHighlight {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            background-color: transparent;
+            font-family: monospace;
+            pointer-events: none;
+            z-index: 2;
+            color: #ccc;
+            font-size: 16px;
+            overflow: scroll;
+        }
+
+        .scrollBarNone {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+
+            &::-webkit-scrollbar {
+                display: none;
+            }
+        }
+    </style>
+    <script>
+        function createSpan(text, color) {
+            const element = document.createElement("span");
+            element.textContent = text;
+            element.style.color = color;
+            return element;
+        }
+    </script>
+</head>
+
+<body>
+    <div class="ui">
+        <h1>BrainFuckインタープリター</h1>
+        <div class="editArea">
+            <textarea id="codeEditor"></textarea>
+            <pre><code id="syntaxHighlight" class="scrollBarNone"></code></pre>
+        </div>
+        <textarea id="inputArea" rows="5" cols="50"></textarea>
+        <textarea id="outputArea" rows="5" cols="50"></textarea>
+        <button id="execBtn">実行</button>
+    </div>
+    <script type="module">
+        const codeEditor = document.getElementById("codeEditor");
+        const inputArea = document.getElementById("inputArea");
+        const outputArea = document.getElementById("outputArea");
+        const execBtn = document.getElementById("execBtn");
+        const syntaxHighlight = document.getElementById("syntaxHighlight");
+
+        import BF from "https://cdn.jsdelivr.net/gh/peyu-7545/tools/editor/langs/bf.mjs";
+
+        function codeEditorInit() {
+            codeEditor.value = BF.defaultCode;
+        }
+
+        // スクロール追従
+        codeEditor.onscroll = () => {
+            syntaxHighlight.scrollLeft = codeEditor.scrollLeft;
+            syntaxHighlight.scrollTop = codeEditor.scrollTop;
+        }
+
+        function codeEditorRender() {
+            syntaxHighlight.innerHTML = "";
+            syntaxHighlight.append(...BF.applySyntax(codeEditor.value));
+        }
+
+        execBtn.onclick = () => {
+            outputArea.value = BF.exec(codeEditor.value, inputArea.value);
+        }
+
+        // TODO
+        // webWorkerを使って裏で処理させる
+        // 無限ループ対応(10秒程度でタイムアウトする)
+
+        codeEditor.oninput = codeEditorRender;
+
+        window.onload = () => {
+            codeEditorInit();
+            codeEditorRender();
+        }
+    </script>
+</body>
+
+</html
